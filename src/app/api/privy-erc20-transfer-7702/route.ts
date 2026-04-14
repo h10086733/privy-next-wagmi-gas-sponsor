@@ -16,8 +16,6 @@ import { recoverAuthorizationAddress } from "viem/utils";
 
 import {
   erc20Abi,
-  gasSponsorChain,
-  gasSponsorChainId,
   getOperatorTransactionHash,
   getUserTransactionHash,
   parsePrivyLogicalCalls,
@@ -27,14 +25,16 @@ import {
   type Signed7702Authorization,
 } from "@/lib/privy-gas-sponsorship";
 import {
-  getBscTestnetRpcUrl,
-  getPrivyAdminProxyAddress,
-  getPrivyLogicalAddress,
+  requireGasSponsorChainConfig,
+} from "@/lib/gas-sponsor-chains";
+import {
   getSponsorPrivateKey,
   privyServerClient,
 } from "@/lib/privy-gas-sponsorship-server";
 
 type Erc20Transfer7702Body = {
+  chainId?: number;
+  chainKey?: string;
   address: string;
   calls: SerializedPrivyLogicalCall[];
   userSignature: `0x${string}`;
@@ -134,9 +134,35 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    let resolvedChainConfig;
+    try {
+      resolvedChainConfig = requireGasSponsorChainConfig({
+        chainId: body.chainId ?? authorization.chainId,
+        chainKey: body.chainKey,
+      });
+    } catch (error) {
+      return NextResponse.json(
+        { error: getErrorDetail(error) },
+        { status: 400 },
+      );
+    }
+
+    if (body.chainId !== undefined && body.chainId !== resolvedChainConfig.id) {
+      return NextResponse.json(
+        {
+          error: `chainId does not match selected chain ${resolvedChainConfig.name}`,
+        },
+        { status: 400 },
+      );
+    }
+
     const normalizedUserAddress = getAddress(address);
-    const normalizedLogicalAddress = getAddress(getPrivyLogicalAddress());
-    const normalizedAdminProxyAddress = getAddress(getPrivyAdminProxyAddress());
+    const normalizedLogicalAddress = getAddress(
+      resolvedChainConfig.contracts.privyLogicalAddress,
+    );
+    const normalizedAdminProxyAddress = getAddress(
+      resolvedChainConfig.contracts.privyAdminProxyAddress,
+    );
     const normalizedAuthorizationAddress = getAddress(authorization.address);
 
     if (!linkedWalletsContainAddress(privyUser, normalizedUserAddress)) {
@@ -157,9 +183,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (authorization.chainId !== gasSponsorChainId) {
+    if (authorization.chainId !== resolvedChainConfig.id) {
       return NextResponse.json(
-        { error: `authorization.chainId must be ${gasSponsorChainId}` },
+        {
+          error: `authorization.chainId must be ${resolvedChainConfig.id} for ${resolvedChainConfig.name}`,
+        },
         { status: 400 },
       );
     }
@@ -188,17 +216,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const rpcUrl = getBscTestnetRpcUrl();
-    const sponsorAccount = privateKeyToAccount(getSponsorPrivateKey());
+    const rpcUrl = resolvedChainConfig.rpcUrl;
+    const sponsorAccount = privateKeyToAccount(
+      getSponsorPrivateKey(resolvedChainConfig.key),
+    );
 
     const publicClient = createPublicClient({
-      chain: gasSponsorChain,
+      chain: resolvedChainConfig.chain,
       transport: http(rpcUrl),
     });
 
     const walletClient = createWalletClient({
       account: sponsorAccount,
-      chain: gasSponsorChain,
+      chain: resolvedChainConfig.chain,
       transport: http(rpcUrl),
     });
 
@@ -268,6 +298,7 @@ export async function POST(req: NextRequest) {
       calls: parsedCalls,
       nonce: walletNonce,
       adminProxyAddress: normalizedAdminProxyAddress,
+      chainId: resolvedChainConfig.id,
     });
 
     const isUserSignatureValid = await verifyMessage({
@@ -289,7 +320,7 @@ export async function POST(req: NextRequest) {
       functionName: "nextOperatorNonce",
       args: [],
       account: sponsorAccount,
-      chain: gasSponsorChain,
+      chain: resolvedChainConfig.chain,
     });
 
     await publicClient.waitForTransactionReceipt({ hash: operatorNonceTxHash });
@@ -306,6 +337,7 @@ export async function POST(req: NextRequest) {
       calls: parsedCalls,
       operatorNonce,
       adminProxyAddress: normalizedAdminProxyAddress,
+      chainId: resolvedChainConfig.id,
     });
 
     const operatorSignature = await sponsorAccount.signMessage({
@@ -375,7 +407,7 @@ export async function POST(req: NextRequest) {
 
     const hash = await walletClient.sendTransaction({
       account: sponsorAccount,
-      chain: gasSponsorChain,
+      chain: resolvedChainConfig.chain,
       type: "eip7702",
       to: normalizedUserAddress,
       value: BigInt(0),
@@ -458,6 +490,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
+      chainId: resolvedChainConfig.id,
+      chainKey: resolvedChainConfig.key,
       hash,
       operator: sponsorAccount.address,
       operatorNonce: operatorNonce.toString(),

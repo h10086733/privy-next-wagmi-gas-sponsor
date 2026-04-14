@@ -10,8 +10,14 @@ import {
 } from "viem";
 import { bscTestnet } from "viem/chains";
 
-export const gasSponsorChain = bscTestnet;
-export const gasSponsorChainId = bscTestnet.id;
+import { defaultGasSponsorChainConfig } from "@/lib/gas-sponsor-chains";
+
+export const defaultGasSponsorChain =
+  defaultGasSponsorChainConfig?.chain ?? bscTestnet;
+export const defaultGasSponsorChainId = defaultGasSponsorChain.id;
+
+export const gasSponsorChain = defaultGasSponsorChain;
+export const gasSponsorChainId = defaultGasSponsorChainId;
 
 export type Signed7702Authorization = {
   address: `0x${string}`;
@@ -94,7 +100,7 @@ export function getUserTransactionHash({
   calls,
   nonce,
   adminProxyAddress,
-  chainId = gasSponsorChainId,
+  chainId = defaultGasSponsorChainId,
 }: {
   wallet: Address;
   calls: readonly PrivyLogicalCall[];
@@ -115,7 +121,7 @@ export function getOperatorTransactionHash({
   calls,
   operatorNonce,
   adminProxyAddress,
-  chainId = gasSponsorChainId,
+  chainId = defaultGasSponsorChainId,
 }: {
   wallet: Address;
   calls: readonly PrivyLogicalCall[];

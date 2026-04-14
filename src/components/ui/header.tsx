@@ -9,7 +9,7 @@ export function Header({ authenticated }: HeaderProps) {
         <div>
           <div className="text-sm font-semibold text-gray-900">privy-next-wagmi-gas-sponsor</div>
           <div className="text-xs text-gray-500">
-            {authenticated ? "BSC Testnet / Privy 7702 / Sponsor" : "Minimal demo"}
+            {authenticated ? "Multi-chain / Privy 7702 / Sponsor" : "Minimal demo"}
           </div>
         </div>
         <a

@@ -3,18 +3,20 @@
 import { PrivyProvider } from "@privy-io/react-auth";
 import { createConfig, WagmiProvider } from "@privy-io/wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { http } from "viem";
-import { bscTestnet } from "viem/chains";
+import { http, type Chain } from "viem";
+
+import { requireSupportedChains } from "@/lib/gas-sponsor-chains";
 
 const queryClient = new QueryClient();
-const rpcUrl =
-  process.env.NEXT_PUBLIC_BSC_TESTNET_RPC_URL ?? process.env.NEXT_PUBLIC_RPC_URL;
+const configuredChains = requireSupportedChains();
+const supportedChains = configuredChains.map((config) => config.chain) as [Chain, ...Chain[]];
+const defaultChain = supportedChains[0];
 
 const wagmiConfig = createConfig({
-  chains: [bscTestnet],
-  transports: {
-    [bscTestnet.id]: http(rpcUrl ?? bscTestnet.rpcUrls.default.http[0]),
-  },
+  chains: supportedChains,
+  transports: Object.fromEntries(
+    configuredChains.map((config) => [config.id, http(config.rpcUrl)]),
+  ),
 });
 
 export default function Providers({ children }: { children: React.ReactNode }) {
@@ -22,8 +24,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     <PrivyProvider
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID!}
       config={{
-        supportedChains: [bscTestnet],
-        defaultChain: bscTestnet,
+        supportedChains,
+        defaultChain,
         embeddedWallets: {
           ethereum: {
             createOnLogin: "users-without-wallets",

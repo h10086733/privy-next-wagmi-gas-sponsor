@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint .",
     "sync:bsc-env": "node scripts/sync-bsc-testnet-env.mjs",
-    "deploy:bsc-testnet": "bash scripts/deploy-bsc-testnet-privy.sh"
+    "sync:chains": "node scripts/sync-gas-sponsor-chains.mjs",
+    "deploy:bsc-testnet": "bash scripts/deploy-bsc-testnet-privy.sh",
+    "deploy:chain": "bash scripts/deploy-privy-chain.sh",
+    "deploy:batch": "bash scripts/deploy-privy-batch.sh"
   },
   "dependencies": {
     "@privy-io/node": "^0.11.0",

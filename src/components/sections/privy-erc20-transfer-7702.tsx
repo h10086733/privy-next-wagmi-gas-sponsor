@@ -24,33 +24,25 @@ import {
 } from "@/components/ui/custom-toast";
 import {
   buildErc20TransferCalls,
+  defaultGasSponsorChainId,
   erc20Abi,
-  gasSponsorChain,
-  gasSponsorChainId,
   getUserTransactionHash,
   privyAdminAbi,
   serializePrivyLogicalCalls,
   type Signed7702Authorization,
   type SerializedPrivyLogicalCall,
 } from "@/lib/privy-gas-sponsorship";
+import {
+  getGasSponsorChainConfigByKey,
+  requireSupportedChains,
+} from "@/lib/gas-sponsor-chains";
 
-const defaultTokenAddress =
-  process.env.NEXT_PUBLIC_SPONSORED_TOKEN_ADDRESS ??
-  "0x741022f045Bbe7d020ebEdbB376743B63fea28e6";
-const defaultRecipientAddress =
-  process.env.NEXT_PUBLIC_SPONSORED_TRANSFER_TO_ADDRESS ??
-  "0x0812aba96cd9a62b38c30e33020b1a76017d9ba1";
-const logicalAddress = process.env.NEXT_PUBLIC_PRIVY_LOGICAL_ADDRESS;
-const adminProxyAddress = process.env.NEXT_PUBLIC_PRIVY_ADMIN_PROXY_ADDRESS;
-const publicRpcUrl =
-  process.env.NEXT_PUBLIC_BSC_TESTNET_RPC_URL ?? process.env.NEXT_PUBLIC_RPC_URL;
-
-const publicClient = createPublicClient({
-  chain: gasSponsorChain,
-  transport: http(publicRpcUrl ?? gasSponsorChain.rpcUrls.default.http[0]),
-});
+const configuredChains = requireSupportedChains();
+const defaultChainConfig = configuredChains[0];
 
 type SignedSponsorRequest = {
+  chainId: number;
+  chainKey: string;
   address: `0x${string}`;
   calls: SerializedPrivyLogicalCall[];
   userSignature: `0x${string}`;
@@ -79,14 +71,40 @@ const PrivyErc20Transfer7702 = () => {
     [wallets],
   );
 
+  const [selectedChainKey, setSelectedChainKey] = useState(defaultChainConfig.key);
   const [selectedAddress, setSelectedAddress] = useState("");
-  const [tokenAddress, setTokenAddress] = useState(defaultTokenAddress);
+  const selectedChainConfig = useMemo(
+    () =>
+      configuredChains.find((chainConfig) => chainConfig.key === selectedChainKey) ??
+      defaultChainConfig,
+    [selectedChainKey],
+  );
+  const deployedChainConfig = useMemo(
+    () => getGasSponsorChainConfigByKey(selectedChainKey),
+    [selectedChainKey],
+  );
+  const logicalAddress = deployedChainConfig?.contracts.privyLogicalAddress;
+  const adminProxyAddress = deployedChainConfig?.contracts.privyAdminProxyAddress;
+  const publicClient = useMemo(
+    () =>
+      createPublicClient({
+        chain: selectedChainConfig.chain,
+        transport: http(
+          selectedChainConfig.rpcUrl ?? selectedChainConfig.chain.rpcUrls.default.http[0],
+        ),
+      }),
+    [selectedChainConfig],
+  );
+  const [tokenAddress, setTokenAddress] = useState(
+    deployedChainConfig?.contracts.sponsoredTokenAddress ?? "",
+  );
   const [recipientAddress, setRecipientAddress] = useState(
-    defaultRecipientAddress,
+    deployedChainConfig?.contracts.sponsoredTransferToAddress ?? "",
   );
   const [amount, setAmount] = useState("1");
   const [decimals, setDecimals] = useState("18");
   const [tokenMetadataLoading, setTokenMetadataLoading] = useState(false);
+  const [tokenMetadataError, setTokenMetadataError] = useState<string | null>(null);
   const [senderTokenBalance, setSenderTokenBalance] = useState<bigint | null>(null);
   const [currentAuthorityNonce, setCurrentAuthorityNonce] = useState<bigint | null>(null);
   const [authorityNonceLoading, setAuthorityNonceLoading] = useState(false);
@@ -96,6 +114,17 @@ const PrivyErc20Transfer7702 = () => {
   const [signedRequest, setSignedRequest] = useState<SignedSponsorRequest | null>(
     null,
   );
+
+  useEffect(() => {
+    setTokenAddress(deployedChainConfig?.contracts.sponsoredTokenAddress ?? "");
+    setRecipientAddress(deployedChainConfig?.contracts.sponsoredTransferToAddress ?? "");
+    setDecimals("18");
+    setTokenMetadataError(null);
+    setSenderTokenBalance(null);
+    setCurrentAuthorityNonce(null);
+    setSignedRequest(null);
+    setRequestPreview("");
+  }, [deployedChainConfig, selectedChainConfig]);
 
   useEffect(() => {
     if (evmWallets.length === 0) {
@@ -130,6 +159,8 @@ const PrivyErc20Transfer7702 = () => {
 
     async function loadTokenMetadata() {
       if (!selectedAddress || !isAddress(selectedAddress) || !tokenAddress || !isAddress(tokenAddress)) {
+        setDecimals("18");
+        setTokenMetadataError(null);
         setSenderTokenBalance(null);
         setTokenMetadataLoading(false);
         return;
@@ -139,6 +170,24 @@ const PrivyErc20Transfer7702 = () => {
       try {
         const normalizedWalletAddress = getAddress(selectedAddress);
         const normalizedTokenAddress = getAddress(tokenAddress);
+        const tokenCode = await publicClient.getCode({
+          address: normalizedTokenAddress,
+          blockTag: "latest",
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!tokenCode || tokenCode === "0x") {
+          setDecimals("18");
+          setTokenMetadataError(
+            `Token address is not deployed on ${selectedChainConfig.name}. Please verify the token address for this chain.`,
+          );
+          setSenderTokenBalance(null);
+          return;
+        }
+
         const [tokenDecimals, tokenBalance] = await Promise.all([
           publicClient.readContract({
             address: normalizedTokenAddress,
@@ -157,13 +206,17 @@ const PrivyErc20Transfer7702 = () => {
           return;
         }
 
+        setTokenMetadataError(null);
         setDecimals(String(tokenDecimals));
         setSenderTokenBalance(tokenBalance as bigint);
-      } catch (error) {
-        console.error(error);
+      } catch {
         if (cancelled) {
           return;
         }
+        setDecimals("18");
+        setTokenMetadataError(
+          `Unable to load token decimals/balance on ${selectedChainConfig.name}. Please verify the token address for this chain.`,
+        );
         setSenderTokenBalance(null);
       } finally {
         if (!cancelled) {
@@ -177,7 +230,7 @@ const PrivyErc20Transfer7702 = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedAddress, tokenAddress]);
+  }, [publicClient, selectedAddress, selectedChainConfig.name, tokenAddress]);
 
 
   useEffect(() => {
@@ -220,7 +273,7 @@ const PrivyErc20Transfer7702 = () => {
     return () => {
       cancelled = true;
     };
-  }, [selectedAddress, signedRequest]);
+  }, [publicClient, selectedAddress, signedRequest]);
 
   const resetSignedRequest = () => {
     setSignedRequest(null);
@@ -245,6 +298,10 @@ const PrivyErc20Transfer7702 = () => {
       throw new Error("Token metadata is still loading. Please wait a moment and try again.");
     }
 
+    if (tokenMetadataError) {
+      throw new Error(tokenMetadataError);
+    }
+
     if (senderTokenBalance === null) {
       throw new Error("Unable to load token decimals/balance from chain. Please verify the token address.");
     }
@@ -258,11 +315,15 @@ const PrivyErc20Transfer7702 = () => {
     }
 
     if (!logicalAddress || !isAddress(logicalAddress)) {
-      throw new Error("Missing NEXT_PUBLIC_PRIVY_LOGICAL_ADDRESS");
+      throw new Error(
+        `Missing PrivyLogical address for chain ${selectedChainConfig.name}`,
+      );
     }
 
     if (!adminProxyAddress || !isAddress(adminProxyAddress)) {
-      throw new Error("Missing NEXT_PUBLIC_PRIVY_ADMIN_PROXY_ADDRESS");
+      throw new Error(
+        `Missing PrivyAdmin proxy address for chain ${selectedChainConfig.name}`,
+      );
     }
 
     if (!tokenAddress) {
@@ -332,7 +393,7 @@ const PrivyErc20Transfer7702 = () => {
       const authorization = await signAuthorization(
         {
           contractAddress: logicalAddress as `0x${string}`,
-          chainId: gasSponsorChainId,
+          chainId: selectedChainConfig.id,
         },
         {
           address: normalizedWalletAddress,
@@ -350,7 +411,7 @@ const PrivyErc20Transfer7702 = () => {
       const normalizedLogicalAddress = getAddress(logicalAddress!);
       if (normalizedAuthorizationAddress !== normalizedLogicalAddress) {
         throw new Error(
-          `Privy returned authorization.address=${normalizedAuthorizationAddress}, but NEXT_PUBLIC_PRIVY_LOGICAL_ADDRESS=${normalizedLogicalAddress}. Please restart Next dev server and sign again.`,
+          `Privy returned authorization.address=${normalizedAuthorizationAddress}, but the configured PrivyLogical address for ${selectedChainConfig.name} is ${normalizedLogicalAddress}. Please refresh the chain config and sign again.`,
         );
       }
 
@@ -359,6 +420,7 @@ const PrivyErc20Transfer7702 = () => {
         calls,
         nonce: walletNonce,
         adminProxyAddress: normalizedAdminProxyAddress,
+        chainId: selectedChainConfig.id,
       });
 
       const { signature: userSignature } = await signMessage(
@@ -371,6 +433,8 @@ const PrivyErc20Transfer7702 = () => {
       );
 
       const nextSignedRequest: SignedSponsorRequest = {
+        chainId: selectedChainConfig.id,
+        chainKey: selectedChainConfig.key,
         address: normalizedWalletAddress,
         calls: serializePrivyLogicalCalls(calls),
         userSignature: userSignature as `0x${string}`,
@@ -433,6 +497,8 @@ const PrivyErc20Transfer7702 = () => {
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
+          chainId: signedRequest.chainId,
+          chainKey: signedRequest.chainKey,
           address: signedRequest.address,
           calls: signedRequest.calls,
           userSignature: signedRequest.userSignature,
@@ -513,6 +579,32 @@ const PrivyErc20Transfer7702 = () => {
     >
       <div className="flex flex-col gap-3">
         <div>
+          <label className="block text-sm font-medium mb-1">Chain</label>
+          <select
+            value={selectedChainKey}
+            onChange={(e) => {
+              const nextChainKey = e.target.value;
+              const nextDeployedChainConfig = getGasSponsorChainConfigByKey(nextChainKey);
+              setSelectedChainKey(nextChainKey);
+              setTokenAddress(nextDeployedChainConfig?.contracts.sponsoredTokenAddress ?? "");
+              setRecipientAddress(nextDeployedChainConfig?.contracts.sponsoredTransferToAddress ?? "");
+              setDecimals("18");
+              setTokenMetadataError(null);
+              setSenderTokenBalance(null);
+              setCurrentAuthorityNonce(null);
+              resetSignedRequest();
+            }}
+            className="w-full px-3 py-2 border border-[#E2E3F0] rounded-md bg-white text-black focus:outline-none focus:ring-1 focus:ring-black text-sm"
+          >
+            {configuredChains.map((chainConfig) => (
+              <option key={chainConfig.key} value={chainConfig.key}>
+                {chainConfig.name} ({chainConfig.id})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
           <label className="block text-sm font-medium mb-1">
             Sender Wallet Address
           </label>
@@ -546,6 +638,7 @@ const PrivyErc20Transfer7702 = () => {
             value={tokenAddress}
             onChange={(e) => {
               setTokenAddress(e.target.value);
+              setTokenMetadataError(null);
               resetSignedRequest();
             }}
             className="w-full px-3 py-2 border border-[#E2E3F0] rounded-md bg-white text-black focus:outline-none focus:ring-1 focus:ring-black text-sm"
@@ -597,18 +690,27 @@ const PrivyErc20Transfer7702 = () => {
         </div>
 
         <div className="text-xs text-gray-500 space-y-1">
+          <p>
+            Chain key: {selectedChainConfig.key}
+          </p>
           <p>Selected wallet: {selectedWallet?.address ?? "No wallet selected"}</p>
           <p>Wallet client: {selectedWallet?.walletClientType ?? "n/a"}</p>
-          <p>Chain: BSC Testnet ({gasSponsorChainId})</p>
           <p>
-            PrivyLogical: {logicalAddress ?? "Missing NEXT_PUBLIC_PRIVY_LOGICAL_ADDRESS"}
+            Chain: {selectedChainConfig.name} ({selectedChainConfig.id})
           </p>
           <p>
-            PrivyAdminProxy: {adminProxyAddress ?? "Missing NEXT_PUBLIC_PRIVY_ADMIN_PROXY_ADDRESS"}
+            Deployment: {deployedChainConfig ? "Ready for gas sponsor" : "Chain added, contracts not deployed yet"}
+          </p>
+          <p>
+            PrivyLogical: {logicalAddress ?? "Missing chain-specific PrivyLogical config"}
+          </p>
+          <p>
+            PrivyAdminProxy: {adminProxyAddress ?? "Missing chain-specific PrivyAdminProxy config"}
           </p>
           <p>Flow: ERC-20 transfer(recipient, amount)</p>
           <p>Note: sponsor/operator only pays gas; token sender is the selected wallet above.</p>
           <p>Token decimals: {decimals}{tokenMetadataLoading ? " (loading...)" : ""}</p>
+          <p>Token metadata: {tokenMetadataError ?? "OK"}</p>
           <p>Decimals source: auto-read from ERC-20 contract</p>
           <p>
             Sender token balance: {senderTokenBalance === null ? "Unavailable" : formatUnits(senderTokenBalance, Number(decimals))}
@@ -627,6 +729,9 @@ const PrivyErc20Transfer7702 = () => {
           </p>
           <p>
             Authorization target: {signedRequest?.authorization.address ?? "Not signed yet"}
+          </p>
+          <p>
+            Authorization chain: {signedRequest?.chainId ?? defaultGasSponsorChainId}
           </p>
         </div>
 

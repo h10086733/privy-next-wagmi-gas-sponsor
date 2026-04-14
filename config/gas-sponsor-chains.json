@@ -1,0 +1,53 @@
+[
+  {
+    "key": "bsc-testnet",
+    "id": 97,
+    "name": "BSC Testnet",
+    "rpcUrl": "https://bsc-testnet.bnbchain.org",
+    "blockExplorerUrl": "https://testnet.bscscan.com",
+    "nativeCurrency": {
+      "name": "BNB",
+      "symbol": "tBNB",
+      "decimals": 18
+    },
+    "contractsEnvFile": "contracts/.env.bsc-testnet",
+    "defaults": {
+      "sponsoredTokenAddress": "0x741022f045Bbe7d020ebEdbB376743B63fea28e6",
+      "sponsoredTransferToAddress": "0x0812aba96cd9a62b38c30e33020b1a76017d9ba1"
+    }
+  },
+  {
+    "key": "sepolia-testnet",
+    "id": 11155111,
+    "name": "Ethereum Sepolia",
+    "rpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
+    "blockExplorerUrl": "https://sepolia.etherscan.io",
+    "nativeCurrency": {
+      "name": "ETH",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "contractsEnvFile": "contracts/.env.sepolia-testnet",
+    "defaults": {
+      "sponsoredTokenAddress": "0x6adba8115f7b46d5405f58791009193ad9ee09d8",
+      "sponsoredTransferToAddress": "0x0812aba96cd9a62b38c30e33020b1a76017d9ba1"
+    }
+  },
+  {
+    "key": "arbitrum-testnet",
+    "id": 421614,
+    "name": "Arbitrum Sepolia",
+    "rpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
+    "blockExplorerUrl": "https://sepolia.arbiscan.io",
+    "nativeCurrency": {
+      "name": "ETH",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "contractsEnvFile": "contracts/.env.arbitrum-testnet",
+    "defaults": {
+      "sponsoredTokenAddress": "0xe904cc229781094f2a60fa2c2771fc26741b2ab5",
+      "sponsoredTransferToAddress": "0x0812aba96cd9a62b38c30e33020b1a76017d9ba1"
+    }
+  }
+]
