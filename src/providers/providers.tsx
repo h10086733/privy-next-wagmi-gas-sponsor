@@ -30,7 +30,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           ethereum: {
             createOnLogin: "users-without-wallets",
           },
-        },
+        }
       }}
     >
       <QueryClientProvider client={queryClient}>

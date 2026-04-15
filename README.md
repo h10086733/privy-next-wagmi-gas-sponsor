@@ -160,6 +160,21 @@ pnpm deploy:batch -- --all --redeploy-logical
 pnpm sync:chains
 ```
 
+## Flutter raw-hash migration helper
+
+新增 `src/lib/privy-7702-flutter.ts`，用于把 React 里的 `useSign7702Authorization()` 流程改造成 Flutter 可迁移版本：
+
+- `hash7702AuthorizationForFlutter(...)`
+  - 生成 EIP-7702 digest
+- `buildFlutter7702RawHashRequest(...)`
+  - 生成给 Flutter `provider.request(...)` 的 `secp256k1_sign` 请求
+- `toSigned7702Authorization(...)`
+  - 把 raw signature 转成后端现有 API 所需的 `{ address, chainId, nonce, r, s, yParity }`
+- `buildFlutter7702RpcRequest(...)`
+  - 保留一个直接走 `eth_sign7702Authorization` 的请求结构，方便对照/探针
+
+迁移时，Flutter 只需要按同样字段把 `authorization` 传给 `/api/privy-erc20-transfer-7702` 即可。
+
 ## 启动应用
 
 ```bash

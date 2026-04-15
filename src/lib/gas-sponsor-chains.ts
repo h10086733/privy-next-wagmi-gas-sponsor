@@ -1,4 +1,5 @@
-import { bscTestnet, defineChain, type Address, type Chain } from "viem";
+import { defineChain, type Address, type Chain } from "viem";
+import { bscTestnet } from "viem/chains";
 
 import registryChainConfigs from "../../config/gas-sponsor-chains.json";
 import generatedChainConfigs from "@/generated/gas-sponsor-chains.json";

@@ -51,6 +51,21 @@ type SignedSponsorRequest = {
   userTransactionHash: `0x${string}`;
 };
 
+function getSubmitTransferErrorMessage(error: unknown): string {
+  if (
+    error instanceof TypeError &&
+    error.message === "Failed to fetch"
+  ) {
+    return "Cannot reach /api/privy-erc20-transfer-7702. Make sure the Next.js server is running on the current origin.";
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Privy 7702 ERC20 transfer failed";
+}
+
 const PrivyErc20Transfer7702 = () => {
   const { wallets } = useWallets();
   const { getAccessToken } = usePrivy();
@@ -527,11 +542,7 @@ const PrivyErc20Transfer7702 = () => {
       showSuccessToast(`Transaction sent: ${data.hash.slice(0, 20)}...`);
     } catch (error) {
       console.error(error);
-      showErrorToast(
-        error instanceof Error
-          ? error.message
-          : "Privy 7702 ERC20 transfer failed",
-      );
+      showErrorToast(getSubmitTransferErrorMessage(error));
     } finally {
       setSubmitting(false);
     }
