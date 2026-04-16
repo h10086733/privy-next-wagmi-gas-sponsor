@@ -1,12 +1,5 @@
-import {
-  concatHex,
-  keccak256,
-  numberToHex,
-  parseSignature,
-  toRlp,
-  type Address,
-  type Hex,
-} from "viem";
+import { parseSignature, type Address, type Hex } from "viem";
+import { hashAuthorization } from "viem/utils";
 
 import type { Signed7702Authorization } from "@/lib/privy-gas-sponsorship";
 
@@ -49,12 +42,11 @@ export function hash7702AuthorizationForFlutter({
   contractAddress,
   nonce,
 }: AuthorizationDigestParams): Hex {
-  return keccak256(
-    concatHex([
-      "0x05",
-      toRlp([numberToHex(chainId), contractAddress, numberToHex(BigInt(nonce))]),
-    ]),
-  );
+  return hashAuthorization({
+    chainId,
+    address: contractAddress,
+    nonce: BigInt(nonce),
+  });
 }
 
 export function buildFlutter7702RawHashRequest(
@@ -111,6 +103,6 @@ export function buildSigned7702AuthorizationFromRawHashSignature(
 export const flutter7702MigrationNotes = {
   rpcMethod: "secp256k1_sign",
   digestFormula: "keccak256(0x05 || rlp([chain_id, contract_address, nonce]))",
-  warning: "Use secp256k1_sign for EIP-7702 authorization digests. Do not use personal_sign.",
+  warning:
+    "Use secp256k1_sign for EIP-7702 authorization digests. Do not use personal_sign. For nonce=0, RLP must encode it as an empty value, not 0x00.",
 } as const;
-
