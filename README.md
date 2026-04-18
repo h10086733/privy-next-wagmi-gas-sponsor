@@ -6,6 +6,7 @@
 
 - 前端按链选择 `EIP-7702 authorization`
 - 后端按链选择 sponsor/operator 钱包补签并广播 type-4 交易
+- 基于 Privy access token + 钱包 `signMessage(String(timestamp))` 调用 Pumpkin `mfa/status` / `mfa/bind` / `mfa/unbind` / `ax/user/withdraw`
 - 每条 EVM 链都可以独立部署 `ERC1967Factory / PrivyAdmin / PrivyLogical`
 - 支持单链部署和批量部署
 - 新增一条 EVM 链时，只需要补一条链配置 + 一个链专属 env 文件
@@ -15,6 +16,8 @@
 - 前端 + 后端：`src/app/page.tsx:1`
 - 7702 组件：`src/components/sections/privy-erc20-transfer-7702.tsx:1`
 - Sponsor API：`src/app/api/privy-erc20-transfer-7702/route.ts:1`
+- Pumpkin 代理：`src/app/api/pumpkin/mfa/status/route.ts:1`
+- Pumpkin 面板：`src/components/sections/pumpkin-mfa-withdraw.tsx:1`
 - 运行时链配置：`src/generated/gas-sponsor-chains.json:1`
 - 链注册表：`config/gas-sponsor-chains.json:1`
 - 单链部署脚本：`scripts/deploy-privy-chain.sh:1`
@@ -78,6 +81,7 @@ cp contracts/.env.example contracts/.env.bsc-testnet
 
 - `NEXT_PUBLIC_PRIVY_APP_ID`
 - `PRIVY_APP_SECRET`
+- `NEXT_PUBLIC_PUMPKIN_API_BASE_URL`（默认可用值：`https://test-app.pumpkin.date`）
 - `NEXT_PUBLIC_DEFAULT_GAS_SPONSOR_CHAIN_KEY`
 
 如果你希望后端显式按链读取 sponsor key，也可以写成：

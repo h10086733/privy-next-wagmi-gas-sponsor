@@ -3,6 +3,7 @@
 import { ToastContainer } from "react-toastify";
 import { usePrivy } from "@privy-io/react-auth";
 
+import PumpkinMfaWithdraw from "@/components/sections/pumpkin-mfa-withdraw";
 import PrivyErc20Transfer7702 from "@/components/sections/privy-erc20-transfer-7702";
 import { FullScreenLoader } from "@/components/ui/fullscreen-loader";
 import { Header } from "@/components/ui/header";
@@ -23,7 +24,7 @@ export default function HomePage() {
             <div>
               <h1 className="text-2xl font-semibold">Privy 7702 + Backend Sponsor</h1>
               <p className="mt-2 text-sm text-gray-600">
-                当前新项目只保留已验证可用的 ERC-20 transfer sponsor 流程。
+                当前 demo 同时保留 ERC-20 sponsor 流程，并新增 Pumpkin MFA 绑定/解绑与提现校验面板。
               </p>
             </div>
             <div className="flex gap-3">
@@ -33,6 +34,7 @@ export default function HomePage() {
             </div>
           </div>
 
+          <PumpkinMfaWithdraw />
           <PrivyErc20Transfer7702 />
         </main>
       ) : (
@@ -45,7 +47,7 @@ export default function HomePage() {
               Privy 7702 Gas Sponsor
             </h1>
             <p className="mt-3 text-sm leading-6 text-gray-600">
-              前端用 Privy 完成 7702 授权和用户签名，后端 sponsor/operator 负责签名并代付 gas。
+              前端用 Privy 完成 7702 授权、钱包消息签名，以及 Pumpkin 2FA bind/unbind/withdraw 的签名校验流程。
             </p>
             <button className="button-primary mt-6 w-full" onClick={login}>
               Login with Privy
